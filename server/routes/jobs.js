@@ -12,6 +12,7 @@ const { notify, notifyMany } = require("../utils/notify");
 const fs = require("fs");
 const path = require("path");
 const env = require("../config/env");
+const { getMinimumPrice } = require("../utils/categoryPrices");
 
 const fields = {
   name: z.string().trim().min(2).max(80), address: z.string().trim().min(3).max(200),
@@ -20,8 +21,8 @@ const fields = {
   category: z.string().trim().max(50), urgent: bool, scheduledAt: futureDate,
   budget: z.coerce.number().positive().max(1e7), lat, lng,
 };
-const createSchema = z.object({ ...fields, category: fields.category.optional(), urgent: bool.optional(), scheduledAt: futureDate.optional(),
-  budget: fields.budget.optional(), lat: lat.optional(), lng: lng.optional(), workerId: objectId.optional() });
+const createSchema = z.object({ ...fields, category: fields.category, urgent: bool.optional(), scheduledAt: futureDate.optional(),
+  budget: fields.budget, lat: lat.optional(), lng: lng.optional(), workerId: objectId.optional() });
 const editSchema = z.object({ address: fields.address, city: fields.city, state: fields.state, pincode, phone, comment: fields.comment,
   category: fields.category, urgent: bool, scheduledAt: futureDate, budget: fields.budget, lat, lng }).partial();
 
@@ -38,6 +39,9 @@ const create = asyncHandler(async (req, res) => {
   const b = req.body;
   const files = filesOf(req).filter((f) => ["photos", "file"].includes(f.fieldname));
   await assertCategory(b.category);
+  const minimumPrice = getMinimumPrice(b.category);
+  if (minimumPrice == null) throw new AppError("Select a category with a configured minimum price", 400);
+  if (Number(b.budget) < minimumPrice) throw new AppError(`The minimum budget for ${b.category} is ₹${minimumPrice}`, 400);
   let worker = null;
   if (b.workerId) {
     worker = await User.findOne({ _id: b.workerId, type: "worker", isBlocked: false }).select("name");
@@ -148,7 +152,12 @@ const edit = asyncHandler(async (req, res) => {
   const job = await loadJob(req.params.id);
   if (!same(job.userId, req.user._id)) throw new AppError("Job not found", 404);
   if (job.status !== "pending") throw new AppError("Only open (pending) requests can be edited", 409);
-  await assertCategory(req.body.category);
+  await assertCategory(req.body.category || job.category);
+  const nextCategory = req.body.category || job.category;
+  const minimumPrice = getMinimumPrice(nextCategory);
+  const nextBudget = req.body.budget ?? job.budget;
+  if (minimumPrice == null) throw new AppError("This category does not have a configured minimum price", 400);
+  if (Number(nextBudget) < minimumPrice) throw new AppError(`The minimum budget for ${nextCategory} is ₹${minimumPrice}`, 400);
   const { lat: la, lng: ln, ...rest } = req.body;
   Object.assign(job, rest);
   if (la != null && ln != null) job.location = toPoint(la, ln);
