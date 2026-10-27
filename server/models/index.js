@@ -30,6 +30,12 @@ const Quote = mongoose.model("quote", new Schema({
   amount: { type: Number, required: true, min: 1 },
   message: { type: String, maxlength: 500, default: "" },
   etaHours: Number,
+  negotiationHistory: [{
+    amount: { type: Number, required: true },
+    message: { type: String, default: "" },
+    etaHours: Number,
+    changedAt: { type: Date, default: Date.now },
+  }],
   status: { type: String, enum: ["pending", "accepted", "rejected", "withdrawn"], default: "pending" },
 }, { timestamps: true }).index({ jobId: 1, workerId: 1 }, { unique: true }));
 
