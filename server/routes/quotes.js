@@ -17,7 +17,23 @@ router.post("/", restrictTo("worker"), requireVerified, validate(quoteSchema), a
   if (!job || job.workerId || job.status !== "pending") throw new AppError("This job is not open for quotes", 409);
   await assertWorkerFree(req.user._id, job.scheduledAt);
   const { jobId, ...rest } = req.body;
-  const quote = await Quote.findOneAndUpdate({ jobId, workerId: req.user._id }, { $set: { ...rest, status: "pending" } }, { upsert: true, new: true, setDefaultsOnInsert: true });
+  let quote = await Quote.findOne({ jobId, workerId: req.user._id });
+  if (quote) {
+    // Keep a timestamped snapshot of every previous offer before updating it.
+    quote.negotiationHistory.push({
+      amount: quote.amount,
+      message: quote.message || "",
+      etaHours: quote.etaHours,
+      changedAt: quote.updatedAt || quote.createdAt || new Date(),
+    });
+    quote.amount = rest.amount;
+    quote.message = rest.message || "";
+    quote.etaHours = rest.etaHours;
+    quote.status = "pending";
+    await quote.save();
+  } else {
+    quote = await Quote.create({ jobId, workerId: req.user._id, ...rest, status: "pending" });
+  }
   notify(job.userId, { type: "new_quote", params: { worker: req.user.name, amount: rest.amount }, jobId, email: true });
   res.status(201).send({ success: true, quote });
 }));
