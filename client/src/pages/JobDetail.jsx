@@ -87,6 +87,19 @@ function Quotes({ job, reload }) {
               <div className="text-right"><p className="text-xl font-extrabold">{money(q.amount)}</p>{i === 0 && data.quotes.length > 1 && <Badge tone="emerald">Lowest</Badge>}{q.etaHours && <p className="text-xs text-slate-500">~{q.etaHours} h</p>}</div>
             </div>
             {q.message && <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">{q.message}</p>}
+            {q.negotiationHistory?.length > 0 && (
+              <details className="mt-3 rounded-xl border border-slate-500/15 p-3">
+                <summary className="cursor-pointer text-sm font-semibold">Negotiation history ({q.negotiationHistory.length} previous offer{q.negotiationHistory.length === 1 ? "" : "s"})</summary>
+                <ol className="mt-3 space-y-2">
+                  {[...q.negotiationHistory].reverse().map((entry, index) => (
+                    <li key={`${entry.changedAt}-${index}`} className="flex flex-wrap items-start justify-between gap-2 text-sm">
+                      <span className="text-slate-500">{entry.changedAt ? fmtDate(entry.changedAt, true) : "Previous offer"}{entry.message ? ` · ${entry.message}` : ""}</span>
+                      <b>{money(entry.amount)}</b>
+                    </li>
+                  ))}
+                </ol>
+              </details>
+            )}
             <div className="mt-3 flex gap-2"><Button size="sm" variant="success" onClick={() => act(() => api.post(`/quotes/${q._id}/accept`), "Quote accepted. Worker assigned.")}>Accept</Button>
               <Button size="sm" variant="ghost" onClick={() => act(() => api.post(`/quotes/${q._id}/reject`), "Quote declined")}>Decline</Button></div>
           </div>))}</div>)}
