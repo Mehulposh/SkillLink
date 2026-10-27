@@ -16,6 +16,13 @@ export default function NewRequest() {
   const [loc, setLoc] = useState(null);
   const [files, setFiles] = useState([]);
   const [busy, setBusy] = useState(false);
+  // Indicative minimum starting prices in INR; final cost depends on scope, materials and location.
+  const CATEGORY_STARTING_PRICES = {
+    "Plumbing": 250, "Electrical": 300, "Carpentry": 400, "Painting": 500,
+    "Masonry": 500, "AC & Appliance Repair": 350, "Cleaning": 300,
+    "Pest Control": 500, "Welding": 500, "Gardening": 250, "Other": 300,
+  };
+  const suggestedPrice = CATEGORY_STARTING_PRICES[f.category];
   const set = (k) => (e) => setF({ ...f, [k]: e.target.value });
 
   useEffect(() => { api.get("/auth/me").then(({ data }) => setF((x) => ({ ...x, name: x.name || data.user.name, phone: x.phone || data.user.phoneNumber || "" }))).catch(() => {}); }, []);
@@ -50,7 +57,10 @@ export default function NewRequest() {
         <Card className="space-y-4 lg:col-span-2">
           <div className="grid gap-4 sm:grid-cols-2">
             <Field label="Category"><Select value={f.category} onChange={set("category")}><option value="">Select…</option>{cats.data?.categories?.map((c) => <option key={c.name}>{c.name}</option>)}</Select></Field>
-            <Field label="Budget (₹, optional)"><Input type="number" min="1" value={f.budget} onChange={set("budget")} placeholder="e.g. 800" /></Field>
+            <Field label="Budget (₹, optional)">
+              <Input type="number" min="1" value={f.budget} onChange={set("budget")} placeholder={suggestedPrice ? `Starting around ₹${suggestedPrice}` : "e.g. 800"} />
+              {suggestedPrice && <p className="mt-1 text-xs text-slate-500">Typical starting price: <b>₹{suggestedPrice}</b>. Final price may vary by job size, parts/materials and location.</p>}
+            </Field>
           </div>
           <Field label="What is the problem?"><Textarea required minLength={3} maxLength={1000} rows={4} value={f.comment} onChange={set("comment")} placeholder="Describe what happened, what you tried, and what you need…" /></Field>
           <div className="grid gap-4 sm:grid-cols-2">
