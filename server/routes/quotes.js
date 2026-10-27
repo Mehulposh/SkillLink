@@ -6,6 +6,7 @@ const { validate } = require("../middlewares/validate");
 const { authenticate, restrictTo, requireVerified } = require("../middlewares/auth");
 const { assertWorkerFree } = require("../utils/schedule");
 const { notify } = require("../utils/notify");
+const { getMinimumPrice } = require("../utils/categoryPrices");
 router.use(authenticate);
 
 const quoteSchema = z.object({ jobId: objectId, amount: z.number().positive().max(1e7),
@@ -13,8 +14,11 @@ const quoteSchema = z.object({ jobId: objectId, amount: z.number().positive().ma
 
 // Worker sends (or revises) a quote on an open job
 router.post("/", restrictTo("worker"), requireVerified, validate(quoteSchema), asyncHandler(async (req, res) => {
-  const job = await Job.findById(req.body.jobId).select("userId workerId status scheduledAt").lean();
+  const job = await Job.findById(req.body.jobId).select("userId workerId status scheduledAt category budget").lean();
   if (!job || job.workerId || job.status !== "pending") throw new AppError("This job is not open for quotes", 409);
+  const minimumPrice = getMinimumPrice(job.category);
+  if (minimumPrice == null) throw new AppError("This job category does not have a configured minimum price", 400);
+  if (Number(req.body.amount) < minimumPrice) throw new AppError(`Worker quotes cannot be below the category minimum of ₹${minimumPrice}`, 400);
   await assertWorkerFree(req.user._id, job.scheduledAt);
   const { jobId, ...rest } = req.body;
   let quote = await Quote.findOne({ jobId, workerId: req.user._id });
